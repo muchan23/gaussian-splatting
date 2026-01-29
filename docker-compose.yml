@@ -1,0 +1,62 @@
+services:
+  gaussian-splatting:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gaussian-splatting:latest
+    container_name: gaussian-splatting
+
+    # GPU support - requires NVIDIA Container Toolkit
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # Mount volumes for data and output persistence
+    volumes:
+      # Your dataset directory (COLMAP or Blender format)
+      - ./data:/data
+      # Output directory for trained models
+      - ./output:/output
+      # Mount source code for development (optional)
+      # - .:/workspace/gaussian-splatting
+
+    # Enable interactive terminal
+    stdin_open: true
+    tty: true
+
+    # Network port for real-time viewer connection
+    ports:
+      - "6009:6009"
+
+    # Working directory
+    working_dir: /workspace/gaussian-splatting
+
+    # Use conda environment by default
+    entrypoint: ["conda", "run", "--no-capture-output", "-n", "gaussian_splatting"]
+    command: ["bash"]
+
+  # Training service - run with: docker compose run train
+  train:
+    extends:
+      service: gaussian-splatting
+    profiles:
+      - training
+    command: >
+      python train.py
+      -s /data
+      -m /output/model
+      --iterations 30000
+
+  # Rendering service - run with: docker compose run render
+  render:
+    extends:
+      service: gaussian-splatting
+    profiles:
+      - rendering
+    command: >
+      python render.py
+      -m /output/model
